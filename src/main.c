@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include "core/tcp/tcp_client/tcp_client.h"
+#include "tcp_client/tcp_client.h"
 #include "core/tcp/server/tcp_server.h"
 
 /* Just a temporary test to see if the tcp_client will work (PL)*/
