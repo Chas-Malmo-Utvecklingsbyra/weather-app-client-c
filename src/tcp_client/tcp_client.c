@@ -177,7 +177,6 @@ TCP_Client_Result tcp_client_disconnect(TCP_Client *client){
 
     if(client->socket.file_descriptor > 0){
         socket_close(&client->socket);
-        client->socket.file_descriptor = 0;
     }
 
     client->connected = false;
