@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <string.h>
 #include "console.h"
 
 /* Kontrollerar om användaren vill avsluta programmet */
