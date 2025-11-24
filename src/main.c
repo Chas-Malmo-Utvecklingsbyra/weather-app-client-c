@@ -29,6 +29,22 @@ static void on_client_received(TCP_Client *client, const uint8_t *data, uint32_t
 
 }
 
+static void on_client_connect(TCP_Client *client){
+    (void)client;
+    printf("[CLIENT] I successfully connected!\n");
+}
+
+static void on_client_disconnect(TCP_Client *client){
+    (void)client;
+    printf("[CLIENT] I am not connected anymore!\n");
+}
+
+static void on_client_error(TCP_Client *client, TCP_Client_Result error){
+    (void)client;
+    printf("[CLIENT] Something doesn't seem to work somehow!\nI encountered the following error: %d\n", error);
+}
+
+
 
 
 int main() {
@@ -50,7 +66,7 @@ int main() {
 
 
     TCP_Client client;
-    if(tcp_client_init(&client, on_client_received) != TCP_Client_Result_OK){
+    if(tcp_client_init(&client, on_client_received, on_client_connect, on_client_disconnect, on_client_error) != TCP_Client_Result_OK){
         fprintf(stderr, "Failed to initialize Client\n");
         tcp_server_dispose(&server);
         return 1;
@@ -63,7 +79,7 @@ int main() {
         tcp_server_dispose(&server);
         return 1;
     }
-    printf("Client connected.\n");
+    /* printf("Client connected.\n"); */
 
     const char *msg = "Hello from the Client!";
     if(tcp_client_send(&client, (const uint8_t *)msg, (uint32_t)strlen(msg)) != TCP_Client_Result_OK){
@@ -96,7 +112,7 @@ int main() {
 
     if(tcp_client_disconnect(&client) != TCP_Client_Result_OK){
         fprintf(stderr, "Client disconnect failed, forcing close.\n");
-        socket_close(&client.socket);
+        socket_close(&client.server.socket);
     }
 
     if(tcp_server_dispose(&server) != TCP_Server_Result_OK){
