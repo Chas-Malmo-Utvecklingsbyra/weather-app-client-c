@@ -2,22 +2,11 @@
 #include <string.h>
 #include <unistd.h>
 #include "core/tcp/tcp_client/tcp_client.h"
-#include "core/tcp/server/tcp_server.h"
+#include "core/http/http.h"
+#include "core/http/parser.h"
 
-/* Just a temporary test to see if the tcp_client will work (PL)*/
-#define TEST_PORT 9000
-#define SERVER_ADDR "127.0.0.1"
-
-static void on_server_received(TCP_Server *server, TCP_Server_Client *client, const uint8_t *buffer, const uint32_t size){
-    
-    if(!server || !client || !buffer || size == 0){
-        return;
-    }
-
-    printf("[SERVER] Received from client FD %d: %.*s\n", client->socket.file_descriptor, (int)size, buffer);
-
-    (void)tcp_server_send_to_client(server, client, buffer, size);
-}
+#define TEST_PORT 10280
+#define SERVER_ADDR "192.168.1.245"
 
 static void on_client_received(TCP_Client *client, const uint8_t *data, uint32_t size){
     
@@ -25,8 +14,7 @@ static void on_client_received(TCP_Client *client, const uint8_t *data, uint32_t
     if(!data || size == 0){
         return;
     }
-    printf("[CLIENT] Received: %.*s\n", (int)size, data);
-
+    /* printf("[CLIENT] Received: %.*s\n", (int)size, data); */
 }
 
 static void on_client_connect(TCP_Client *client){
@@ -41,34 +29,18 @@ static void on_client_disconnect(TCP_Client *client){
 
 static void on_client_error(TCP_Client *client, TCP_Client_Result error){
     (void)client;
-    printf("[CLIENT] Something doesn't seem to work somehow!\nI encountered the following error: %d\n", error);
+    printf("[CLIENT] ERROR!\nI encountered the following error: %d\n", error);
 }
-
 
 
 
 int main() {
     /* printf("Hello, world! I am the (C) client.\n"); */
 
-    TCP_Server server;
-    if(tcp_server_init(&server, TEST_PORT, on_server_received) != TCP_Server_Result_OK){
-        printf("Failed to initialize server.\n");
-        return 1;
-    }
-
-    if(tcp_server_start(&server) != TCP_Server_Result_OK){
-        fprintf(stderr, "Failed to start server.\n");
-        tcp_server_dispose(&server);
-        return 1;
-    }
-
-    printf("Server running on port %d\n", TEST_PORT);
-
-
+    
     TCP_Client client;
     if(tcp_client_init(&client, on_client_received, on_client_connect, on_client_disconnect, on_client_error) != TCP_Client_Result_OK){
         fprintf(stderr, "Failed to initialize Client\n");
-        tcp_server_dispose(&server);
         return 1;
     }
 
@@ -76,32 +48,26 @@ int main() {
     if(tcp_client_connect(&client, SERVER_ADDR, TEST_PORT) != TCP_Client_Result_OK){
         fprintf(stderr, "Client failed to connect to server.\n");
         tcp_client_disconnect(&client);
-        tcp_server_dispose(&server);
         return 1;
     }
-    /* printf("Client connected.\n"); */
 
-    const char *msg = "Hello from the Client!";
+    const char *msg = "GET /weather?latitude=59.85&longitude=17.6389 HTTP/1.1\r\n"
+                        "Host: 192.168.1.245\r\n"
+                        "User-Agent: curl/8.6.0\r\n"
+                        "Accept: */*\r\n\r\n";
     if(tcp_client_send(&client, (const uint8_t *)msg, (uint32_t)strlen(msg)) != TCP_Client_Result_OK){
         fprintf(stderr, "Client failed to queue initial message (buffer full?)\n");
     }
-
-    tcp_client_work(&client);
+    printf("Detta skickas: \n%s\n", msg);
 
     while(1){
         
-        TCP_Server_Result sr = tcp_server_work(&server);
-        if(sr != TCP_Server_Result_OK){
-            fprintf(stderr, "Server reported error (%d), shutting down!\n", (int)sr);
-            break;
-        }
-
-        TCP_Client_Result cr = tcp_client_work(&client);
-        if(cr == TCP_Client_Result_Disconnected){
+        TCP_Client_Result client_result = tcp_client_work(&client);
+        if(client_result == TCP_Client_Result_Disconnected){
             fprintf(stderr, "Client disconnected. Shutting down loop.\n");
             break;
-        } else if (cr != TCP_Client_Result_OK) {
-            fprintf(stderr, "Client reported error (%d), shutting down!\n", (int)cr);
+        } else if (client_result != TCP_Client_Result_OK) {
+            fprintf(stderr, "Client reported error (%d), shutting down!\n", (int)client_result);
             break;
         }
         
@@ -113,11 +79,6 @@ int main() {
     if(tcp_client_disconnect(&client) != TCP_Client_Result_OK){
         fprintf(stderr, "Client disconnect failed, forcing close.\n");
         socket_close(&client.server.socket);
-    }
-
-    if(tcp_server_dispose(&server) != TCP_Server_Result_OK){
-        fprintf(stderr, "Server dipose failed, forcing close.\n");
-        socket_close(&server.socket);
     }
     
     printf("Clean exit.\n");
