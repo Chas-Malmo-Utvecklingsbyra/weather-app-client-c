@@ -5,104 +5,161 @@
 #include <unistd.h>
 #include "core/tcp/tcp_client/tcp_client.h"
 #include "core/http/http.h"
+#include "core/http/httpClient/httpClient.h"
 #include "core/http/parser.h"
+#include "core/locationiq/locationiq.h"
 
-#define SERVER_ADDR "127.0.0.1"
-#define TEST_PORT 8080
+#define SERVER_ADDR "malmo.onvo.se"
+#define TEST_PORT 10280
 
-static void on_client_received(TCP_Client *client, const uint8_t *data, uint32_t size){
+static void on_received_full_message(HTTPClient *client){
+    printf("%s", client->inbuffer);
+
+    // We don't want to parse HTTP here, it should be inside the httpclient so that it could be retreived here -- fix later
+}
+
+
+int main() 
+{
+    HTTPClient client;    
     
-    (void)client;
-    if(size > 0){
-        printf("[CLIENT] Received: %u bytes\n", size);
-        printf("%.*s\n", size, data);
-    }
-}
+    HTTPClient_Initiate(&client, on_received_full_message);
 
-static void on_full_request(TCP_Client *client, Http_Request *request){
-    
-    (void)client;
-    if(request->start_line.method == GET || request->start_line.method == POST || request->start_line.method == OPTIONS){
-        printf("Received full HTTP request: %s %s\n", Http_Request_Get_Method_String(request), request->start_line.path);
-    } else {
-        printf("Received HTTP response, ignoring for now.\n");
-    }
-}
+    printf("\n\n===============================================================\n");
+    printf("Hello & Welcome to Chas Malmö Utvecklingsbyrå's Weather Client!\n");
+    printf("===============================================================\n");
 
-static void on_client_connect(TCP_Client *client){
-    (void)client;
+    while(true){
 
-    printf("[CLIENT] I successfully connected!\n");
-}
-
-static void on_client_disconnect(TCP_Client *client){
-    (void)client;
-
-    printf("[CLIENT] Disconnected!\n");
-}
-
-static void on_client_error(TCP_Client *client, TCP_Client_Result error){
-    (void)client;
-    printf("[CLIENT] ERROR!\nI encountered the following error: %d\n", error);
-}
-
-
-
-int main() {
-    /* printf("Hello, world! I am the (C) client.\n"); */
-
-    
-    TCP_Client client;
-    if(tcp_client_init(&client, NULL, on_client_received, on_full_request, on_client_connect, on_client_disconnect, on_client_error) != TCP_Client_Result_OK){
-        fprintf(stderr, "Failed to initialize Client\n");
-        return 1;
-    }
-
-    printf("Connecting client to %s:%d\n", SERVER_ADDR, TEST_PORT);
-    if(tcp_client_connect(&client, SERVER_ADDR, TEST_PORT) != TCP_Client_Result_OK){
-        fprintf(stderr, "Client failed to connect to server.\n");
-        return 1;
-    }
-
-    const char *msg =
-        "GET /weather?latitude=59.85&longitude=17.6389 HTTP/1.1\r\n"
-        "Host: 127.0.0.1\r\n"
-        "User-Agent: curl/8.6.0\r\n"
-        "Accept: */*\r\n"
-        "Connection: close\r\n\r\n";
-
-    bool request_sent = false;
-    
-
-    while(client.server.connection_state != TCP_Client_Connection_State_Disconnected){
-        
-        TCP_Client_Result client_result = tcp_client_work(&client);
-        /* printf("[DEBUG] Connection state: %d | Incoming bytes: %u | Outgoing bytes: %u\n", client.server.connection_state, client.server.incoming_buffer_bytes, client.server.outgoing_buffer_bytes); */
-
-        if(!request_sent && client.server.connection_state == TCP_Client_Connection_State_Connected && client.server.outgoing_buffer_bytes == 0){
-            if(tcp_client_send(&client, (const uint8_t *)msg, (uint32_t)strlen(msg)) != TCP_Client_Result_OK){
-                fprintf(stderr, "Client failed to queue initial message (buffer full?)\n");
-                tcp_client_disconnect(&client);
-                return 1;
-            }
-            printf("Sending message: \n%s\n", msg);
-            request_sent = true;
+        printf("\nPlease select one of the following two options:\n\nPress 1: to write the name of a location.\nPress 2: to input the latitude and longitude of the location.\nHowever, if you would like to exit the program just enter 'e' or 'q'\n");
+        printf("\nPlease make your choice: \n");
+        char input_buffer[64];
+        memset(input_buffer, 0, sizeof(input_buffer));
+        scanf("%63s", input_buffer);
+        getchar();
+        if(strcmp(input_buffer, "exit") == 0 || strcmp(input_buffer, "quit") == 0 || strcmp(input_buffer, "e") == 0 || strcmp(input_buffer, "q") == 0){
+            break;
         }
+        uint8_t selected_menu_choice = atoi(input_buffer);
+        float latitude = 0.0f;
+        float longitude = 0.0f;
 
-        if (client_result != TCP_Client_Result_OK && client_result != TCP_Client_Result_Nothing_Read_Yet && client_result != TCP_Client_Result_Nothing_Sent_Yet) {
-            if(client_result == TCP_Client_Result_Disconnected){
+        switch(selected_menu_choice){
+
+            case 1:{
+                // Contact location IQ and get lat and long to work with
+                char input[128];
+                Coordinates coords;
+                memset(&coords, 0, sizeof(Coordinates));
+
+                printf("Please enter city name:\n");
+                fgets(input, sizeof(input), stdin);
+                input[strcspn(input, "\n")] = 0;
+
+                if(strlen(input) == 0){
+                    printf("City name cannot be empty. Try again.\n");
+                    continue;
+                }
+
+                int result = locationiq_get_coordinates(&coords, input);
+
+                if(result != LOCATIONIQ_RESULT_OK){
+                    printf("No matching cities found.\n");
+                    break;
+                }
+
+                latitude = coords.lat;
+                longitude = coords.lon;
+
+                printf("Found city: %s\n", coords.location);
+                printf("lat=%.6f, lon=%.6f\n\n", latitude, longitude);
+
+                break;    
+            }
+            
+            case 2:{
+
+                while(true){
+                    char latitude_str[32];
+                    char longitude_str[32];
+                    float lat, lon;
+
+                    printf("Please enter latitude (-90 to 90):\n");
+                    fgets(latitude_str, sizeof(latitude_str), stdin);
+                    lat = atof(latitude_str);
+
+                    printf("Please enter longitude (-180 to 180):\n");
+                    fgets(longitude_str, sizeof(longitude_str), stdin);
+                    lon = atof(longitude_str);
+
+                    if(lat < -90 || lat > 90){
+                        printf("Invalid latitude value. Try again.\n");
+                        continue;
+                    }
+                    if(lon < -180 || lon > 180){
+                        printf("Invalid longitude value. Try again.\n");
+                        continue;
+                    }
+
+                    latitude = lat;
+                    longitude = lon;                    
+                    break;
+                }
+
                 break;
             }
-            fprintf(stderr, "Client error: %d\n", (int)client_result);
-            printf("Shutting down!\n");
-            break;
-        }          
+
+            default:{
+                printf("Invalid choice\n");
+                continue;
+            }
+        }
+               
+        printf("Getting weather for latitude: %.4f longitude: %.4f\n", latitude, longitude);
         
+        char route_buffer[512];
+        memset(route_buffer, 0, sizeof(route_buffer));
+        snprintf(route_buffer, sizeof(route_buffer), "/weather?latitude=%.4f&longitude=%.4f\n", latitude, longitude);
+
+        HTTPClient_Reset(&client);
+
+        HTTPClient_GET(&client, "155.4.19.176", route_buffer);
+
+        while(HTTPClient_Work(&client) == false){
+
+        }
+
+        // Client cleanup, right now it contains crap -- fix that because we can't reuse the same client right now, which we should be able to. LOOKUP!
+        // Fix inside tcp_client
+
+        /* printf("Input buffer is: '%s'\n", input_buffer); */
+
+        /* 
+        TODO - example of program flow
+            DONE -- 0. Welcome the user
+            DONE -- 1. Prompt the user to input a city name (or lat and long) for which the weather information should be retrieved.
+            DONE -- 2. Waiting for stdin
+            DONE -- 3. Open menu - where do you want to get weather info from? 
+                        (If entering a city name, our program should translate to lat and long, and get information) 
+                        if there is conflicting information(ex. several different cities with the same name), the user will have to select which one they want to see the weather info for.
+            DONE -- 4. Request to the server with this lat and long to get weather info
+            DONE -- 5. Wait for response
+            DONE -- 6. Print response
+            DONE -- 7. Loop back to step 1
+
+        */
+        
+        /* while(true){
+            bool done = HTTPClient_Work(&client);
+            if(done == true){
+                break;
+            }
+
+        } */
     }
-    
-    printf("Shutting down!\n");
-    tcp_client_disconnect(&client);
-    printf("Clean exit.\n");
+
+    HTTPClient_Dispose(&client);
+    printf("Goodbye and thank you for using our Weather Client!\n");
 
 
     /*
