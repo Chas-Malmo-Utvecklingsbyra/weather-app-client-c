@@ -47,7 +47,7 @@ int main()
         switch(selected_menu_choice){
 
             case 1:{
-                // Contact location IQ and get lat and long to work with
+                // Contacts location IQ and gets latitude and longitude to work with by letting the user input the name of a location which provides the user with a list of matching location names.
                 char input[128];
                 Coordinates coords;
                 memset(&coords, 0, sizeof(Coordinates));
@@ -56,16 +56,25 @@ int main()
                 fgets(input, sizeof(input), stdin);
                 input[strcspn(input, "\n")] = 0;
 
+                // Added a choice for the user to redo it's location search if they want to, without having them to choose one of the found cities. It takes them back to.
+                if(strcmp(input, "0") == 0){
+                    break;
+                }
+
                 if(strlen(input) == 0){
                     printf("City name cannot be empty. Try again.\n");
                     continue;
                 }
 
-                int result = locationiq_get_coordinates(&coords, input);
+                LOCATIONIQ_RESULT result = locationiq_get_coordinates(&coords, input);
+
+                if(result == LOCATIONIQ_RESULT_USER_ABORTED){
+                    continue;
+                }
 
                 if(result != LOCATIONIQ_RESULT_OK){
                     printf("No matching cities found.\n");
-                    break;
+                    continue;
                 }
 
                 latitude = coords.lat;
