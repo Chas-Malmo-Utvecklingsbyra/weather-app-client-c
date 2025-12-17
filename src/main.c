@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
+
 #include "core/tcp/tcp_client/tcp_client.h"
 #include "core/http/http.h"
 #include "core/http/httpClient/httpClient.h"
@@ -44,6 +45,7 @@ int main()
         float latitude = 0.0f;
         float longitude = 0.0f;
 
+        // Lets the user choose between entering a name of a location for case 1, and the latitude and longitude of a location in case 2.
         switch(selected_menu_choice){
 
             case 1:{
@@ -128,75 +130,20 @@ int main()
         
         char route_buffer[512];
         memset(route_buffer, 0, sizeof(route_buffer));
-        snprintf(route_buffer, sizeof(route_buffer), "/weather?latitude=%.4f&longitude=%.4f\n", latitude, longitude);
+        snprintf(route_buffer, sizeof(route_buffer), "/v1/weather?latitude=%.4f&longitude=%.4f\n", latitude, longitude);
 
         HTTPClient_Reset(&client);
 
-        HTTPClient_GET(&client, "155.4.19.176", route_buffer);
+        /* HTTPClient_GET(&client, "155.4.19.176", route_buffer); */
+        HTTPClient_GET(&client, "127.0.0.1", route_buffer);
 
         while(HTTPClient_Work(&client) == false){
 
         }
-
-        // Client cleanup, right now it contains crap -- fix that because we can't reuse the same client right now, which we should be able to. LOOKUP!
-        // Fix inside tcp_client
-
-        /* printf("Input buffer is: '%s'\n", input_buffer); */
-
-        /* 
-        TODO - example of program flow
-            DONE -- 0. Welcome the user
-            DONE -- 1. Prompt the user to input a city name (or lat and long) for which the weather information should be retrieved.
-            DONE -- 2. Waiting for stdin
-            DONE -- 3. Open menu - where do you want to get weather info from? 
-                        (If entering a city name, our program should translate to lat and long, and get information) 
-                        if there is conflicting information(ex. several different cities with the same name), the user will have to select which one they want to see the weather info for.
-            DONE -- 4. Request to the server with this lat and long to get weather info
-            DONE -- 5. Wait for response
-            DONE -- 6. Print response
-            DONE -- 7. Loop back to step 1
-
-        */
-        
-        /* while(true){
-            bool done = HTTPClient_Work(&client);
-            if(done == true){
-                break;
-            }
-
-        } */
     }
 
     HTTPClient_Dispose(&client);
     printf("Goodbye and thank you for using our Weather Client!\n");
-
-
-    /*
-
-    Create an input-buffer.
-
-    Verify that we have an internet-connection and/or a network-card.
-
-    Loop
-        Wait for input from stdin.
-        Fill buffer with data from stdin.
-
-        Check whether or not the program should close by comparing the input-buffer against "q", "exit", etc.
-
-        If we're here then the client wants to get weather data.
-        Try connecting to the weather-app server:
-            - Success:
-                Send input-buffer to the server and wait for a Network Message.
-                When the Network Message has come we need to check the type of the Network Message:
-                    - Specify_Location
-                    - Weather_Report
-                        We got a reportPrint the response when we get it.
-            - Fail:
-                We probably don't have internet, or something is wrong with the server. Check the return-value(?).
-
-    */
-
-
 
     /*
 
@@ -213,9 +160,6 @@ int main()
     8. Cachea reporten. Nyckeln kan vara koordinaterna så om någon ber om de koordinaterna och de inte är "för gamla", använd den!
 
     */
-
-
-
 
     return 0;
 }
