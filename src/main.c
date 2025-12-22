@@ -138,7 +138,7 @@ int main()
         HTTPClient_GET(&client, "127.0.0.1", route_buffer);
 
         while(HTTPClient_Work(&client) == false){
-
+            sleep_ms(50);
         }
     }
 
